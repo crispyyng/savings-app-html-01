@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Save Money App</title>
+    
+    <!-- 1. Tailwind CSS for design -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- 2. React & ReactDOM Core -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- 3. Babel for compiling JSX directly in the browser -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- 4. Import Map: This tells the browser exactly how to resolve your Firebase and React imports -->
+    <script type="importmap">
+    {
+        "imports": {
+            "react": "https://esm.sh/react@18",
+            "react-dom/client": "https://esm.sh/react-dom@18/client",
+            "firebase/app": "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js",
+            "firebase/analytics": "https://www.gstatic.com/firebasejs/10.12.2/firebase-analytics.js",
+            "firebase/auth": "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js",
+            "firebase/firestore": "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js"
+        }
+    }
+    </script>
+    <style>
+        body { margin: 0; padding: 0; background-color: #f9fafb; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- data-type="module" is required so your "import" statements work seamlessly -->
+    <script type="text/babel" data-type="module">
+        import { createRoot } from 'react-dom/client';
+        
+        // =======================================================================================
+       import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAnalytics } from "firebase/analytics";
+import { 
+  getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+  GoogleAuthProvider, signInWithPopup, signOut
+} from 'firebase/auth';
+import { 
+  getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc
+} from 'firebase/firestore';
+
+// ==========================================
+// 1. Firebase & 核心設定
+// ==========================================
+
+
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyD5iLIBqMK__fqyRUObXnO9S55Rne0gQnY",
+  authDomain: "my-savings-app-138fd.firebaseapp.com",
+  projectId: "my-savings-app-138fd",
+  storageBucket: "my-savings-app-138fd.firebasestorage.app",
+  messagingSenderId: "610693434561",
+  appId: "1:610693434561:web:00221b38ee48d3cb875840",
+  measurementId: "G-4FV1FGDX28"
+};
+
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
+
+// --- 多國語言字典 ---
+const dict = {
+  zh: {
+    appTitle: "儲蓄助手",
+    home: "日常", wishlist: "心願", analysis: "分析", settings: "設定",
+    dailyBudget: "每日預算", todaySpent: "今日已花", todayRemaining: "今日剩餘預算", cumulativeSurplus: "累積可用盈餘",
+    aiEntryTitle: "🤖 AI 智能記帳", aiPlaceholder: "例如：尋日食麥當勞用咗50蚊...", aiBtn: "AI 分析",
+    manualEntryTitle: "💸 手動記帳",
+    itemName: "項目名稱", amount: "金額", category: "分類", note: "備註 (選填)", saveBtn: "儲存紀錄",
+    todayDetails: "今日明細",
+    wishDesc: "你想要什麼呢？", wishPrice: "預估金額 $", wishMeaning: "這份心願對你的意義是？", wishBtn: "許下心願",
+    wishShowTier: "顯示層級", wishEmpty: "目前沒有符合此層級的心願",
+    analysisTitle: "數據分析", quickSelect: "快速選擇", today: "今日", thisWeek: "本週", thisMonth: "本月",
+    customRange: "自訂區間", to: "至",
+    totalSpentRange: "區間總花費", chartCategory: "分類占比 (長條圖)", chartTrend: "每日趨勢 (折線圖)",
+    settingsTitle: "個人設定",
+    nickname: "暱稱", langSelect: "語言 / Language",
+    baseDate: "計算起始日", baseBalance: "起始日餘額 ($)",
+    cloudBackup: "雲端備份與帳號", guest: "訪客使用者", localOnly: "資料僅暫存於本設備", loginGoogle: "連結 Google 帳號", logout: "登出帳號",
+    categories: ["基本生活", "社交/娛樂", "突發/緊急", "固定支出", "其他"],
+    wishTiers: [
+      { level: 1, label: '🌿 溫柔的必需', desc: '照顧好自己的基石' },
+      { level: 2, label: '💖 怦然的心動', desc: '為日常帶來純粹快樂' },
+      { level: 3, label: '☁️ 隨緣的期盼', desc: '有很好，沒有也無妨' }
+    ]
+  },
+  en: {
+    appTitle: "Savings Assistant",
+    home: "Home", wishlist: "Wishlist", analysis: "Analysis", settings: "Settings",
+    dailyBudget: "Daily Budget", todaySpent: "Today Spent", todayRemaining: "Today Remaining", cumulativeSurplus: "Cumulative Surplus",
+    aiEntryTitle: "🤖 AI Smart Entry", aiPlaceholder: "e.g., spent 50 on Mcdonalds yesterday...", aiBtn: "AI Parse",
+    manualEntryTitle: "💸 Manual Entry",
+    itemName: "Item Name", amount: "Amount", category: "Category", note: "Note (Opt)", saveBtn: "Save",
+    todayDetails: "Today's Details",
+    wishDesc: "What do you desire?", wishPrice: "Est. Price $", wishMeaning: "What does this mean to you?", wishBtn: "Make a Wish",
+    wishShowTier: "Show Tiers", wishEmpty: "No wishes in selected tiers",
+    analysisTitle: "Data Analysis", quickSelect: "Quick Select", today: "Today", thisWeek: "This Week", thisMonth: "This Month",
+    customRange: "Custom Range", to: "to",
+    totalSpentRange: "Total Spent", chartCategory: "Category Breakdown", chartTrend: "Daily Trend",
+    settingsTitle: "Personal Settings",
+    nickname: "Nickname", langSelect: "Language / 語言",
+    baseDate: "Starting Date", baseBalance: "Starting Balance ($)",
+    cloudBackup: "Cloud Backup & Account", guest: "Guest User", localOnly: "Data saved locally only", loginGoogle: "Link Google Account", logout: "Logout",
+    categories: ["Living", "Social/Fun", "Emergency", "Fixed", "Other"],
+    wishTiers: [
+      { level: 1, label: '🌿 Gentle Necessity', desc: 'Cornerstone of self-care' },
+      { level: 2, label: '💖 Heart-fluttering', desc: 'Pure joy for daily life' },
+      { level: 3, label: '☁️ Serendipitous', desc: 'Nice to have, fine without' }
+    ]
+  }
+};
+
+// ==========================================
+// 2. 主應用程式元件
+// ==========================================
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [activeTab, setActiveTab] = useState('home');
+  const [isLoading, setIsLoading] = useState(true);
+
+  // 資料狀態
+  const [expenses, setExpenses] = useState([]);
+  const [wishlist, setWishlist] = useState([]);
+  
+  // 設定狀態 (包含隱藏設定與舊版要求)
+  const [config, setConfig] = useState({ 
+    dailyLimit: 500,
+    language: 'zh',
+    nickname: '',
+    baseDate: new Date().toISOString().split('T')[0],
+    baseBalance: 0
+  });
+
+  const t = dict[config.language] || dict.zh;
+
+  // 願望清單篩選狀態 (預設全選)
+  const [activeTierFilters, setActiveTierFilters] = useState([1, 2, 3]);
+
+  // 表單狀態
+  const todayDateStr = new Date().toISOString().split('T')[0];
+  const [newExpense, setNewExpense] = useState({ item: '', amount: '', category: t.categories[0], note: '', date: todayDateStr });
+  const [newWish, setNewWish] = useState({ title: '', price: '', level: 2 });
+  
+  // AI 狀態
+  const [aiText, setAiText] = useState('');
+  const [isAiProcessing, setIsAiProcessing] = useState(false);
+
+  // 分析頁面狀態
+  const [analysisPreset, setAnalysisPreset] = useState('month'); // today, week, month, custom
+  const [analysisDateRange, setAnalysisDateRange] = useState({
+    start: new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0],
+    end: todayDateStr
+  });
+
+  // ==========================================
+  // 3. 認證與資料監聽
+  // ==========================================
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
+        console.error("Auth error:", error);
+      }
+    };
+    initAuth();
+
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setIsLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const expensesRef = collection(db, 'artifacts', appId, 'users', user.uid, 'expenses');
+    const unsubExpenses = onSnapshot(expensesRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setExpenses(data.sort((a, b) => new Date(b.date) - new Date(a.date)));
+    });
+
+    const wishlistRef = collection(db, 'artifacts', appId, 'users', user.uid, 'wishlist');
+    const unsubWishlist = onSnapshot(wishlistRef, (snapshot) => {
+      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setWishlist(data);
+    });
+
+    const configRef = doc(db, 'artifacts', appId, 'users', user.uid, 'config', 'userConfig');
+    const unsubConfig = onSnapshot(configRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const dbConfig = docSnap.data();
+        setConfig(prev => ({ ...prev, ...dbConfig }));
+        // 更新分類預設值如果語言改變
+        if (dbConfig.language && dbConfig.language !== config.language) {
+           setNewExpense(prev => ({...prev, category: dict[dbConfig.language].categories[0]}));
+        }
+      }
+    });
+
+    return () => { unsubExpenses(); unsubWishlist(); unsubConfig(); };
+  }, [user]);
+
+  // ==========================================
+  // 4. 業務邏輯與操作
+  // ==========================================
+  
+  const handleAddExpense = async (e) => {
+    e.preventDefault();
+    if (!user || !newExpense.amount || !newExpense.item) return;
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), {
+        item: newExpense.item,
+        amount: Number(newExpense.amount),
+        category: newExpense.category,
+        note: newExpense.note,
+        date: newExpense.date,
+        createdAt: new Date().toISOString()
+      });
+      setNewExpense({ ...newExpense, item: '', amount: '', note: '' });
+    } catch (error) {
+      console.error("Error adding expense:", error);
+    }
+  };
+
+  const handleDeleteExpense = async (id) => {
+    if (!user) return;
+    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'expenses', id));
+  };
+
+  const handleAIEntry = async () => {
+    if (!aiText.trim() || !user) return;
+    setIsAiProcessing(true);
+    try {
+      const prompt = `
+        Parse this expense input: "${aiText}".
+        Current Date: ${todayDateStr}.
+        Valid Categories: ${t.categories.join(', ')}.
+        Return ONLY a JSON object with keys: "item" (string), "amount" (number), "category" (string, strictly match one of the valid categories), "date" (YYYY-MM-DD). Do not include markdown formatting or \`\`\`json.
+      `;
+      
+      const payload = {
+        contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: { responseMimeType: "application/json" }
+      };
+
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) throw new Error("API request failed");
+      const data = await res.json();
+      const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (resultText) {
+        const parsed = JSON.parse(resultText);
+        await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'expenses'), {
+          item: parsed.item || "AI 記帳",
+          amount: Number(parsed.amount),
+          category: t.categories.includes(parsed.category) ? parsed.category : t.categories[0],
+          note: "由 AI 建立",
+          date: parsed.date || todayDateStr,
+          createdAt: new Date().toISOString()
+        });
+        setAiText('');
+      }
+    } catch (error) {
+      console.error("AI Parse Error:", error);
+      alert("AI 解析失敗，請手動輸入或重試。");
+    } finally {
+      setIsAiProcessing(false);
+    }
+  };
+
+  const saveConfig = async (newSettings) => {
+    if (!user) return;
+    const updated = { ...config, ...newSettings };
+    setConfig(updated);
+    try {
+      await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'config', 'userConfig'), updated);
+    } catch (error) {
+      await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'config'), updated);
+    }
+  };
+
+  // 願望清單操作
+  const handleAddWish = async (e) => {
+    e.preventDefault();
+    if (!user || !newWish.title || !newWish.price) return;
+    await addDoc(collection(db, 'artifacts', appId, 'users', user.uid, 'wishlist'), {
+      title: newWish.title, price: Number(newWish.price), level: Number(newWish.level), isCompleted: false, createdAt: new Date().toISOString()
+    });
+    setNewWish({ title: '', price: '', level: 2 });
+  };
+
+  const handleToggleWish = async (id, currentStatus) => {
+    if (!user) return;
+    await updateDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'wishlist', id), { isCompleted: !currentStatus });
+  };
+
+  const handleDeleteWish = async (id) => {
+    if (!user) return;
+    await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'wishlist', id));
+  };
+
+  // 登入登出
+  const handleGoogleLogin = async () => {
+    try { await signInWithPopup(auth, new GoogleAuthProvider()); } catch (error) { console.error(error); }
+  };
+  const handleLogout = async () => {
+    try { await signOut(auth); } catch (error) { console.error(error); }
+  };
+
+  // ==========================================
+  // 5. 衍生數據計算與圖表處理
+  // ==========================================
+  
+  // 累積盈餘與今日預算
+  const baseDateObj = new Date(config.baseDate);
+  const todayObj = new Date(todayDateStr);
+  const diffTime = Math.max(0, todayObj - baseDateObj);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  // 總預算 (從起始日到今天)
+  const totalBudgetSinceBase = diffDays * config.dailyLimit;
+  
+  // 從起始日後的所有花費
+  const expensesSinceBase = expenses.filter(e => e.date >= config.baseDate);
+  const totalSpentSinceBase = expensesSinceBase.reduce((sum, e) => sum + e.amount, 0);
+  
+  // 累積可用盈餘 = 初始餘額 + 應有總預算 - 已花費
+  const cumulativeSurplus = config.baseBalance + totalBudgetSinceBase - totalSpentSinceBase;
+
+  // 今日花費
+  const todayExpenses = expenses.filter(e => e.date === todayDateStr);
+  const todayTotal = todayExpenses.reduce((sum, e) => sum + e.amount, 0);
+  const todayRemaining = config.dailyLimit - todayTotal;
+
+  // 願望清單篩選
+  const filteredWishlist = wishlist.filter(wish => activeTierFilters.includes(wish.level));
+
+  // 分析區間快速設定
+  const setPresetRange = (preset) => {
+    setAnalysisPreset(preset);
+    const end = todayDateStr;
+    let start = end;
+    const d = new Date();
+    
+    if (preset === 'week') {
+      const day = d.getDay() || 7; 
+      d.setDate(d.getDate() - day + 1);
+      start = d.toISOString().split('T')[0];
+    } else if (preset === 'month') {
+      d.setDate(1);
+      start = d.toISOString().split('T')[0];
+    }
+    setAnalysisDateRange({ start, end });
+  };
+
+  // 數據分析處理
+  const analysisData = useMemo(() => {
+    const filtered = expenses.filter(e => e.date >= analysisDateRange.start && e.date <= analysisDateRange.end);
+    const totalSpent = filtered.reduce((sum, e) => sum + e.amount, 0);
+    
+    // 分類長條圖資料
+    const byCategory = {};
+    filtered.forEach(e => {
+      byCategory[e.category] = (byCategory[e.category] || 0) + e.amount;
+    });
+    const categoryArray = Object.keys(byCategory).map(cat => ({
+      name: cat, amount: byCategory[cat], percentage: totalSpent > 0 ? Math.round((byCategory[cat] / totalSpent) * 100) : 0
+    })).sort((a, b) => b.amount - a.amount);
+
+    // 每日折線圖資料
+    const byDate = {};
+    filtered.forEach(e => {
+      byDate[e.date] = (byDate[e.date] || 0) + e.amount;
+    });
+    const dateArray = Object.keys(byDate).sort().map(d => ({
+      date: d, amount: byDate[d]
+    }));
+    
+    const maxDaily = dateArray.length > 0 ? Math.max(...dateArray.map(d => d.amount)) : 0;
+
+    return { totalSpent, categoryArray, dateArray, maxDaily, filtered };
+  }, [expenses, analysisDateRange]);
+
+  // 折線圖 SVG Path 產生
+  const generateLinePath = () => {
+    if (analysisData.dateArray.length === 0) return "";
+    const pts = analysisData.dateArray.map((d, i) => {
+      const x = (i / Math.max(1, analysisData.dateArray.length - 1)) * 100;
+      const y = 100 - ((d.amount / analysisData.maxDaily) * 100);
+      return `${x},${y}`;
+    }).join(" ");
+    return pts;
+  };
+
+  // ==========================================
+  // 6. 渲染畫面
+  // ==========================================
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center bg-neutral-50 text-neutral-400">Loading...</div>;
+  }
+
+  return (
+    <div className="min-h-screen bg-neutral-50 pb-24 font-sans text-neutral-800">
+      
+      {/* 頂部標題 */}
+      <header className="bg-white px-6 py-5 shadow-sm sticky top-0 z-10 flex justify-between items-center">
+        <h1 className="text-xl font-bold text-neutral-800 tracking-wide">
+          {config.nickname ? `${config.nickname} 的${t.appTitle}` : t.appTitle}
+        </h1>
+        {activeTab === 'analysis' && <span className="text-sm font-medium text-neutral-400">{t.analysisTitle}</span>}
+      </header>
+
+      <main className="p-5 max-w-md mx-auto">
+        
+        {/* ================= HOME TAB ================= */}
+        {activeTab === 'home' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+            
+            {/* 盈餘與預算卡片 */}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gradient-to-br from-indigo-500 to-purple-600 rounded-3xl p-5 text-white shadow-md">
+                <p className="text-xs text-indigo-100 mb-1">{t.cumulativeSurplus}</p>
+                <p className="text-2xl font-bold">${cumulativeSurplus.toFixed(1)}</p>
+                <p className="text-[10px] text-indigo-200 mt-2">依設定起始日計算</p>
+              </div>
+              <div className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100 flex flex-col justify-center">
+                <p className="text-xs text-neutral-400 mb-1">{t.todayRemaining}</p>
+                <p className={`text-2xl font-bold ${todayRemaining < 0 ? 'text-red-500' : 'text-neutral-800'}`}>
+                  ${todayRemaining}
+                </p>
+                <p className="text-[10px] text-neutral-400 mt-2">{t.dailyBudget}: ${config.dailyLimit}</p>
+              </div>
+            </div>
+
+            {/* AI 智能記帳區 */}
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100">
+              <h2 className="text-sm font-bold text-neutral-700 mb-3">{t.aiEntryTitle}</h2>
+              <div className="flex gap-2">
+                <input type="text" 
+                  className="flex-1 bg-neutral-50 border-none rounded-2xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-purple-200 transition-all" 
+                  placeholder={t.aiPlaceholder}
+                  value={aiText} onChange={e => setAiText(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAIEntry()}
+                />
+                <button 
+                  onClick={handleAIEntry} disabled={isAiProcessing || !aiText.trim()}
+                  className={`px-4 py-2 rounded-2xl font-bold text-sm transition-all ${isAiProcessing ? 'bg-neutral-200 text-neutral-400' : 'bg-purple-100 text-purple-700 hover:bg-purple-200'}`}
+                >
+                  {isAiProcessing ? '...' : t.aiBtn}
+                </button>
+              </div>
+            </div>
+
+            {/* 手動記帳 */}
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100">
+              <h2 className="text-sm font-bold text-neutral-700 mb-4">{t.manualEntryTitle}</h2>
+              <form onSubmit={handleAddExpense} className="space-y-4">
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="block text-[10px] text-neutral-400 mb-1 ml-1">{t.itemName}</label>
+                    <input type="text" required
+                      className="w-full bg-neutral-50 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-100 text-sm font-medium" 
+                      placeholder={t.itemName}
+                      value={newExpense.item} onChange={e => setNewExpense({...newExpense, item: e.target.value})} 
+                    />
+                  </div>
+                  <div className="w-[100px]">
+                    <label className="block text-[10px] text-neutral-400 mb-1 ml-1">{t.amount}</label>
+                    <input type="number" required
+                      className="w-full bg-neutral-50 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-100 text-sm font-bold text-indigo-700" 
+                      placeholder="0"
+                      value={newExpense.amount} onChange={e => setNewExpense({...newExpense, amount: e.target.value})} 
+                    />
+                  </div>
+                </div>
+                
+                <div className="flex gap-3">
+                  <div className="w-2/5">
+                    <label className="block text-[10px] text-neutral-400 mb-1 ml-1">{t.category}</label>
+                    <select 
+                      className="w-full bg-neutral-50 rounded-xl px-3 py-3 outline-none focus:ring-2 focus:ring-indigo-100 text-sm text-neutral-700"
+                      value={newExpense.category} onChange={e => setNewExpense({...newExpense, category: e.target.value})}
+                    >
+                      {t.categories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[10px] text-neutral-400 mb-1 ml-1">{t.note}</label>
+                    <input type="text" 
+                      className="w-full bg-neutral-50 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-indigo-100 text-sm" 
+                      placeholder={t.note}
+                      value={newExpense.note} onChange={e => setNewExpense({...newExpense, note: e.target.value})} 
+                    />
+                  </div>
+                </div>
+                
+                <button type="submit" className="w-full bg-neutral-800 text-white rounded-xl py-3.5 font-bold text-sm hover:bg-neutral-700 active:scale-[0.98] transition-all shadow-sm">
+                  {t.saveBtn}
+                </button>
+              </form>
+            </div>
+
+            {/* 今日明細 */}
+            {todayExpenses.length > 0 && (
+              <div>
+                <h2 className="text-sm font-bold text-neutral-500 mb-3 px-1">{t.todayDetails} (已花: ${todayTotal})</h2>
+                <div className="space-y-3">
+                  {todayExpenses.map(expense => (
+                    <div key={expense.id} className="bg-white p-4 rounded-2xl flex items-center justify-between shadow-sm border border-neutral-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center text-xs font-bold shrink-0">
+                          {expense.category[0]}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-neutral-700 text-sm truncate">{expense.item}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className="text-[10px] bg-neutral-100 text-neutral-500 px-1.5 py-0.5 rounded">{expense.category}</span>
+                            {expense.note && <span className="text-[10px] text-neutral-400 truncate max-w-[100px]">{expense.note}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3 ml-2 shrink-0">
+                        <span className="font-bold text-neutral-800">-${expense.amount}</span>
+                        <button onClick={() => handleDeleteExpense(expense.id)} className="text-neutral-300 hover:text-red-400 transition-colors p-1">
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ================= WISHLIST TAB ================= */}
+        {activeTab === 'wishlist' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <form onSubmit={handleAddWish} className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100 mb-6 space-y-4">
+              <div>
+                <input type="text" required
+                  className="w-full bg-neutral-50 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-pink-200 transition-all text-sm mb-3" 
+                  placeholder={t.wishDesc}
+                  value={newWish.title} onChange={e => setNewWish({...newWish, title: e.target.value})} 
+                />
+                <input type="number" required
+                  className="w-full bg-neutral-50 rounded-2xl px-4 py-3 outline-none focus:ring-2 focus:ring-pink-200 transition-all text-sm mb-4" 
+                  placeholder={t.wishPrice}
+                  value={newWish.price} onChange={e => setNewWish({...newWish, price: e.target.value})} 
+                />
+                
+                <p className="text-xs text-neutral-500 mb-2 ml-1">{t.wishMeaning}</p>
+                <div className="space-y-2 mb-4">
+                  {t.wishTiers.map(tier => (
+                    <label key={tier.level} 
+                      className={`flex flex-col p-3 rounded-2xl border cursor-pointer transition-all ${
+                        newWish.level === tier.level ? 'border-pink-300 bg-pink-50' : 'border-neutral-100 bg-white hover:bg-neutral-50'
+                      }`}
+                      onClick={() => setNewWish({...newWish, level: tier.level})}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium text-sm text-neutral-700">{tier.label}</span>
+                        <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${newWish.level === tier.level ? 'border-pink-400' : 'border-neutral-300'}`}>
+                          {newWish.level === tier.level && <div className="w-2 h-2 rounded-full bg-pink-400"></div>}
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-neutral-400 mt-1">{tier.desc}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <button type="submit" className="w-full bg-pink-500 text-white rounded-2xl py-3.5 font-bold text-sm hover:bg-pink-600 active:scale-[0.98] transition-all shadow-sm">
+                {t.wishBtn}
+              </button>
+            </form>
+
+            <div className="mb-4">
+              <p className="text-xs text-neutral-400 mb-2 ml-1">{t.wishShowTier}</p>
+              <div className="flex flex-wrap gap-2">
+                {t.wishTiers.map(tier => {
+                  const isActive = activeTierFilters.includes(tier.level);
+                  return (
+                    <button key={tier.level}
+                      onClick={() => {
+                        if (isActive) setActiveTierFilters(prev => prev.filter(l => l !== tier.level));
+                        else setActiveTierFilters(prev => [...prev, tier.level]);
+                      }}
+                      className={`px-3 py-1.5 rounded-full text-[10px] font-medium transition-all border ${
+                        isActive ? 'bg-neutral-700 text-white border-neutral-700' : 'bg-white text-neutral-400 border-neutral-200'
+                      }`}
+                    >
+                      {isActive ? '✓ ' : ''}{tier.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              {filteredWishlist.length === 0 ? (
+                <div className="text-center py-10 text-neutral-400 text-sm bg-white rounded-3xl border border-neutral-100 border-dashed">
+                  {t.wishEmpty}
+                </div>
+              ) : (
+                filteredWishlist.sort((a,b) => a.level - b.level).map(wish => {
+                  const currentTier = t.wishTiers.find(tier => tier.level === wish.level) || t.wishTiers[1];
+                  return (
+                    <div key={wish.id} className={`bg-white p-4 rounded-2xl flex items-center gap-4 shadow-sm border transition-all ${wish.isCompleted ? 'border-green-200 bg-green-50/50' : 'border-neutral-100'}`}>
+                      <button 
+                        onClick={() => handleToggleWish(wish.id, wish.isCompleted)}
+                        className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-colors ${wish.isCompleted ? 'border-green-500 bg-green-500 text-white' : 'border-neutral-300 text-transparent'}`}
+                      >
+                        <CheckIcon />
+                      </button>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[10px] text-pink-500 font-medium">{currentTier.label.split(' ')[0]}</span>
+                        <p className={`font-bold text-sm truncate mt-0.5 ${wish.isCompleted ? 'text-neutral-400 line-through' : 'text-neutral-700'}`}>{wish.title}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className={`text-sm ${wish.isCompleted ? 'text-neutral-300' : 'text-neutral-800 font-bold'}`}>${wish.price}</p>
+                      </div>
+                      <button onClick={() => handleDeleteWish(wish.id)} className="text-neutral-300 hover:text-red-400 ml-1">
+                        <TrashIcon />
+                      </button>
+                    </div>
+                  )
+                })
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ================= ANALYSIS TAB ================= */}
+        {activeTab === 'analysis' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+            
+            {/* 快速選擇區間 */}
+            <div className="flex gap-2 mb-2 overflow-x-auto pb-1 hide-scrollbar">
+              {['today', 'week', 'month', 'custom'].map(preset => {
+                const labels = { today: t.today, week: t.thisWeek, month: t.thisMonth, custom: t.customRange };
+                return (
+                  <button key={preset} 
+                    onClick={() => preset === 'custom' ? setAnalysisPreset('custom') : setPresetRange(preset)}
+                    className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all border ${
+                      analysisPreset === preset ? 'bg-neutral-800 text-white border-neutral-800' : 'bg-white text-neutral-500 border-neutral-200 hover:bg-neutral-50'
+                    }`}
+                  >
+                    {labels[preset]}
+                  </button>
+                )
+              })}
+            </div>
+
+            {/* 自訂區間選擇器 */}
+            {analysisPreset === 'custom' && (
+              <div className="bg-white rounded-2xl p-4 shadow-sm border border-neutral-100 flex items-center gap-2 animate-in fade-in">
+                <input type="date" value={analysisDateRange.start} onChange={(e) => setAnalysisDateRange(prev => ({...prev, start: e.target.value}))}
+                  className="flex-1 bg-neutral-50 text-neutral-700 text-xs rounded-xl px-2 py-2 outline-none border border-neutral-200"
+                />
+                <span className="text-neutral-400 text-xs">{t.to}</span>
+                <input type="date" value={analysisDateRange.end} onChange={(e) => setAnalysisDateRange(prev => ({...prev, end: e.target.value}))}
+                  className="flex-1 bg-neutral-50 text-neutral-700 text-xs rounded-xl px-2 py-2 outline-none border border-neutral-200"
+                />
+              </div>
+            )}
+
+            {/* 總花費卡片 */}
+            <div className="bg-gradient-to-r from-emerald-500 to-teal-600 rounded-3xl p-6 text-white shadow-md">
+              <p className="text-emerald-100 text-sm font-medium mb-1">{t.totalSpentRange}</p>
+              <p className="text-4xl font-bold">${analysisData.totalSpent}</p>
+              <p className="text-xs text-emerald-100 mt-2 opacity-80">{analysisData.filtered.length} 筆紀錄</p>
+            </div>
+
+            {/* 長條圖：分類占比 */}
+            <div className="bg-white p-5 rounded-3xl shadow-sm border border-neutral-100">
+              <h3 className="text-sm font-bold text-neutral-700 mb-4 flex items-center gap-2">
+                <BarChartIcon /> {t.chartCategory}
+              </h3>
+              {analysisData.categoryArray.length === 0 ? (
+                <p className="text-center text-xs text-neutral-400 py-4">無資料</p>
+              ) : (
+                <div className="space-y-3">
+                  {analysisData.categoryArray.map(cat => (
+                    <div key={cat.name}>
+                      <div className="flex justify-between items-end mb-1">
+                        <span className="text-xs font-bold text-neutral-700">{cat.name}</span>
+                        <div className="text-right">
+                          <span className="text-xs font-bold text-neutral-700">${cat.amount}</span>
+                          <span className="text-[10px] text-neutral-400 ml-2">{cat.percentage}%</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-neutral-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="bg-teal-400 h-1.5 rounded-full" style={{ width: `${cat.percentage}%` }}></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 折線圖：每日趨勢 */}
+            <div className="bg-white p-5 rounded-3xl shadow-sm border border-neutral-100">
+              <h3 className="text-sm font-bold text-neutral-700 mb-4 flex items-center gap-2">
+                <LineChartIcon /> {t.chartTrend}
+              </h3>
+              {analysisData.dateArray.length === 0 ? (
+                <p className="text-center text-xs text-neutral-400 py-4">無資料</p>
+              ) : (
+                <div className="relative h-32 w-full mt-4 border-b border-l border-neutral-200">
+                  <svg className="w-full h-full overflow-visible" preserveAspectRatio="none" viewBox="0 0 100 100">
+                    <polyline
+                      fill="none" stroke="#2dd4bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                      points={generateLinePath()}
+                    />
+                    {/* 數據點 */}
+                    {analysisData.dateArray.map((d, i) => {
+                      const x = (i / Math.max(1, analysisData.dateArray.length - 1)) * 100;
+                      const y = 100 - ((d.amount / analysisData.maxDaily) * 100);
+                      return <circle key={i} cx={x} cy={y} r="1.5" fill="#0f766e" />;
+                    })}
+                  </svg>
+                  {/* Y軸標籤 */}
+                  <div className="absolute top-0 -left-1 transform -translate-x-full text-[8px] text-neutral-400">${analysisData.maxDaily}</div>
+                  <div className="absolute bottom-0 -left-1 transform -translate-x-full translate-y-1/2 text-[8px] text-neutral-400">$0</div>
+                </div>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* ================= SETTINGS TAB ================= */}
+        {activeTab === 'settings' && (
+          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-6">
+            
+            {/* 基本設定 */}
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1.5">{t.nickname}</label>
+                <input type="text" 
+                  className="w-full bg-neutral-50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-neutral-200 text-sm border border-transparent" 
+                  value={config.nickname || ''} placeholder="設定您的稱呼"
+                  onChange={e => setConfig({...config, nickname: e.target.value})} 
+                  onBlur={(e) => saveConfig({nickname: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-neutral-700 mb-1.5">{t.dailyBudget} ($)</label>
+                <input type="number" 
+                  className="w-full bg-neutral-50 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-neutral-200 text-sm font-medium border border-transparent" 
+                  value={config.dailyLimit} 
+                  onChange={e => setConfig({...config, dailyLimit: Number(e.target.value)})} 
+                  onBlur={(e) => saveConfig({dailyLimit: Number(e.target.value)})}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[10px] text-neutral-500 mb-1">{t.baseDate}</label>
+                  <input type="date" 
+                    className="w-full bg-neutral-50 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-neutral-200 text-xs border border-transparent" 
+                    value={config.baseDate} 
+                    onChange={e => setConfig({...config, baseDate: e.target.value})} 
+                    onBlur={(e) => saveConfig({baseDate: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-neutral-500 mb-1">{t.baseBalance}</label>
+                  <input type="number" 
+                    className="w-full bg-neutral-50 rounded-xl px-3 py-2 outline-none focus:ring-2 focus:ring-neutral-200 text-xs border border-transparent" 
+                    value={config.baseBalance} 
+                    onChange={e => setConfig({...config, baseBalance: Number(e.target.value)})} 
+                    onBlur={(e) => saveConfig({baseBalance: Number(e.target.value)})}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* 系統設定 */}
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100">
+              <label className="block text-xs font-bold text-neutral-700 mb-2">{t.langSelect}</label>
+              <div className="flex bg-neutral-100 rounded-xl p-1">
+                <button 
+                  onClick={() => saveConfig({language: 'zh'})}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${config.language === 'zh' ? 'bg-white shadow-sm text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+                >中文 (繁)</button>
+                <button 
+                  onClick={() => saveConfig({language: 'en'})}
+                  className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${config.language === 'en' ? 'bg-white shadow-sm text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+                >English</button>
+              </div>
+            </div>
+
+            {/* 帳號與備份 */}
+            <div className="bg-white rounded-3xl p-5 shadow-sm border border-neutral-100">
+              <h3 className="text-sm font-bold text-neutral-700 mb-4">{t.cloudBackup}</h3>
+              <div className="flex items-center gap-4 mb-6 bg-neutral-50 p-3 rounded-2xl">
+                {user?.photoURL ? (
+                  <img src={user.photoURL} className="w-10 h-10 rounded-full shadow-sm" alt="user avatar"/>
+                ) : (
+                  <div className="w-10 h-10 rounded-full bg-neutral-200 flex items-center justify-center text-neutral-400">
+                    <UserIcon />
+                  </div>
+                )}
+                <div className="flex-1 overflow-hidden">
+                  <p className="text-sm font-bold text-neutral-700 truncate">
+                    {user?.isAnonymous ? t.guest : (user?.displayName || "User")}
+                  </p>
+                  <p className="text-[10px] text-neutral-500 truncate">
+                    {user?.isAnonymous ? t.localOnly : user?.email}
+                  </p>
+                </div>
+              </div>
+
+              {user?.isAnonymous ? (
+                <button onClick={handleGoogleLogin} className="w-full py-3 bg-neutral-800 text-white font-bold text-sm rounded-xl shadow-sm hover:bg-neutral-700 transition-all flex items-center justify-center gap-2">
+                  <GoogleIcon /> {t.loginGoogle}
+                </button>
+              ) : (
+                <button onClick={handleLogout} className="w-full py-3 bg-rose-50 text-rose-600 font-bold text-sm rounded-xl hover:bg-rose-100 transition-all">
+                  {t.logout}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </main>
+
+      {/* 底部導航列 */}
+      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-neutral-100 pb-safe z-20">
+        <div className="max-w-md mx-auto flex justify-around items-center p-2">
+          <NavButton active={activeTab === 'home'} onClick={() => setActiveTab('home')} icon={<HomeIcon />} label={t.home} />
+          <NavButton active={activeTab === 'wishlist'} onClick={() => setActiveTab('wishlist')} icon={<HeartIcon />} label={t.wishlist} />
+          <NavButton active={activeTab === 'analysis'} onClick={() => setActiveTab('analysis')} icon={<PieChartIcon />} label={t.analysis} />
+          <NavButton active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} icon={<SettingsIcon />} label={t.settings} />
+        </div>
+      </nav>
+    </div>
+  );
+}
+
+// ==========================================
+// 7. UI 元件與 Icons
+// ==========================================
+
+function NavButton({ active, onClick, icon, label }) {
+  return (
+    <button 
+      onClick={onClick} 
+      className={`flex flex-col items-center gap-1 p-2 w-16 transition-all ${active ? 'text-neutral-800' : 'text-neutral-400 hover:text-neutral-600'}`}
+    >
+      <div className={`transition-all ${active ? 'stroke-[2.5px] scale-110' : 'stroke-[2px]'}`}>
+        {icon}
+      </div>
+      {/* 修改處：文字始終可見，選中時變色且加粗 */}
+      <span className={`text-[10px] font-medium transition-all ${active ? 'opacity-100 font-bold' : 'opacity-70'}`}>{label}</span>
+    </button>
+  );
+}
+
+// Inline SVGs
+const HomeIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>;
+const HeartIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>;
+const PieChartIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>;
+const SettingsIcon = () => <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>;
+const TrashIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>;
+const CheckIcon = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>;
+const UserIcon = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>;
+const GoogleIcon = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v8"/><path d="M8 12h8"/></svg>;
+const BarChartIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-4"/></svg>;
+const LineChartIcon = () => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>;
+        // =======================================================================================
+
+        import React, { useState, useEffect, useMemo } from 'react';
+        import { initializeApp } from 'firebase/app';
+        import { getAnalytics } from "firebase/analytics";
+        import { 
+          getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged,
+          GoogleAuthProvider, signInWithPopup, signOut
+        } from 'firebase/auth';
+        import { 
+          getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc
+        } from 'firebase/firestore';
+
+        const firebaseConfig = {
+          apiKey: "AIzaSyD5iLIBqMK__fqyRUObXnO9S55Rne0gQnY",
+          authDomain: "my-savings-app-138fd.firebaseapp.com",
+          projectId: "my-savings-app-138fd",
+          storageBucket: "my-savings-app-138fd.firebasestorage.app",
+          messagingSenderId: "610693434561",
+          appId: "1:610693434561:web:00221b38ee48d3cb875840",
+          measurementId: "G-4FV1FGDX28"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const analytics = getAnalytics(app);
+
+      
+        // -------------------------------------------------------------------
+
+        // =======================================================================================
+        // MOUNTING LOGIC
+        // If your main application component is named something other than "App" 
+        // (for example: "SaveMoneyApp"), please update the name inside <App /> below.
+        // =======================================================================================
+        const rootElement = document.getElementById('root');
+        if (rootElement) {
+            const root = createRoot(rootElement);
+            root.render(<App />);
+        }
+    </script>
+</body>
+</html>
