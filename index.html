@@ -929,7 +929,21 @@
             )}
 
           </main>
+        {isExpenseModalOpen && (
+            <ExpenseFormModal 
+               initialData={editingExpense}
+               onClose={() => { setExpenseModalOpen(false); setEditingExpense(null); }} 
+               onSave={saveExpense} 
+            />
+          )}
 
+          {isWishModalOpen && (
+             <WishFormModal
+               initialData={editingWish}
+               onClose={() => { setWishModalOpen(false); setEditingWish(null); }}
+               onSave={saveWishItem}
+             />
+          )}
           <nav className="fixed bottom-0 w-full max-w-md bg-white border-t border-neutral-100 px-6 py-3 flex justify-between items-center z-50 rounded-t-2xl shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
             {[
               { id: 'home', icon: <HomeIcon />, label: t.navHome, color: 'text-indigo-600', bg: 'bg-indigo-50' },
@@ -949,7 +963,17 @@
         </div>
       );
     };
+    function WishItemCard({ item, openEditWish, deleteItem, updateWishSaved, handleAddSubItem, handleDeleteSubItem }) {
+        // ... (WishItemCard 的內容) ...
+    }
 
+    function ExpenseFormModal({ initialData, onClose, onSave }) {
+        // ... (ExpenseFormModal 的內容) ...
+    }
+
+    function WishFormModal({ initialData, onClose, onSave }) {
+        // ... (WishFormModal 的內容) ...
+    }
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
   </script>
