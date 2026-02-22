@@ -964,12 +964,206 @@
       );
     };
     function WishItemCard({ item, openEditWish, deleteItem, updateWishSaved, handleAddSubItem, handleDeleteSubItem }) {
+      const { useState } = React;
+        const [subName, setSubName] = useState('');
+        const [subAmount, setSubAmount] = useState('');
+        const [showSub, setShowSub] = useState(false);
+
+        const progress = Math.min(100, Math.round((item.saved / item.price) * 100));
+        const isCompleted = item.saved >= item.price;
+        const subItems = item.subItems || [];
+        const allocatedAmount = subItems.reduce((sum, sub) => sum + sub.amount, 0);
+        const remainingBudget = item.price - allocatedAmount;
+        
+        let daysLeft = null;
+        if (item.targetDate) {
+            const diffTime = new Date(item.targetDate).setHours(0,0,0,0) - new Date().setHours(0,0,0,0);
+            daysLeft = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        }
+
+        const onAddSub = () => {
+            if (!subName || !subAmount) return alert('請填寫項目名稱與金額');
+            handleAddSubItem(item.id, subItems, subName, subAmount);
+            setSubName(''); setSubAmount('');
+        };
+
+        return (
+            <div className={`bg-white p-5 rounded-3xl border shadow-sm relative overflow-hidden transition-all ${isCompleted ? 'border-green-200 bg-green-50/30' : 'border-neutral-100'}`}>
+                {isCompleted && <div className="absolute -right-6 -top-6 w-24 h-24 bg-green-400/10 rounded-full blur-2xl"></div>}
+                
+                <div className="flex justify-between items-start mb-2 relative z-10">
+                    <div>
+                        <h4 className="font-bold text-lg text-neutral-800 flex items-center gap-2">
+                        {item.name}
+                        {isCompleted && <span className="bg-green-100 text-green-600 text-xs px-2 py-0.5 rounded-full flex items-center gap-1"><CheckIcon/> 達成</span>}
+                        </h4>
+                        <p className="text-sm text-neutral-500 font-medium">總預算: ${Number(item.price).toLocaleString()}</p>
+                        {item.targetDate && (
+                            <p className={`text-xs mt-1 font-bold ${daysLeft >= 0 ? 'text-indigo-500' : 'text-red-500'}`}>
+                                📅 目標日: {item.targetDate} ({daysLeft >= 0 ? `剩餘 ${daysLeft} 天` : `已過期 ${Math.abs(daysLeft)} 天`})
+                            </p>
+                        )}
+                    </div>
+                    <div className="flex gap-2">
+                        <button onClick={() => openEditWish(item)} className="text-indigo-400 hover:text-indigo-600 p-2 bg-indigo-50 rounded-xl transition-colors"><EditIcon /></button>
+                        <button onClick={() => deleteItem('wishlist', item.id)} className="text-red-400 hover:text-red-600 p-2 bg-red-50 rounded-xl transition-colors"><TrashIcon /></button>
+                    </div>
+                </div>
+
+                <div className="mt-4 relative z-10">
+                    <div className="flex justify-between text-xs mb-1.5 font-bold">
+                        <span className="text-pink-600">已存 ${Number(item.saved).toLocaleString()}</span>
+                        <span className="text-neutral-400">{progress}%</span>
+                    </div>
+                    <div className="w-full bg-neutral-100 rounded-full h-3 overflow-hidden">
+                        <div className={`h-full rounded-full transition-all duration-700 ease-out ${isCompleted ? 'bg-green-400' : 'bg-gradient-to-r from-pink-400 to-pink-500'}`} style={{ width: `${progress}%` }}></div>
+                    </div>
+                </div>
+
+                {!isCompleted && (
+                    <div className="flex gap-2 mt-4 relative z-10">
+                        <button onClick={() => updateWishSaved(item.id, item.saved, item.price, 100)} className="flex-1 bg-pink-50 text-pink-600 py-2 rounded-xl text-sm font-bold">+ $100</button>
+                        <button onClick={() => updateWishSaved(item.id, item.saved, item.price, 500)} className="flex-1 bg-pink-50 text-pink-600 py-2 rounded-xl text-sm font-bold">+ $500</button>
+                    </div>
+                )}
+
+                <div className="mt-4 pt-4 border-t border-neutral-100 relative z-10">
+                    <button onClick={() => setShowSub(!showSub)} className="text-sm font-bold text-neutral-600 flex justify-between w-full items-center">
+                        <span>預算分配明細 ({subItems.length})</span>
+                        <span className="text-xs text-neutral-400">{showSub ? '隱藏 ▲' : '展開 ▼'}</span>
+                    </button>
+                    
+                    {showSub && (
+                        <div className="mt-3 space-y-2 animate-fade-in">
+                            <div className="flex justify-between text-xs font-bold text-neutral-500 bg-neutral-50 p-2 rounded-lg mb-2">
+                                <span>剩餘未分配預算</span>
+                                <span className={remainingBudget < 0 ? 'text-red-500' : 'text-teal-600'}>${remainingBudget.toLocaleString()}</span>
+                            </div>
+                            
+                            {subItems.map(sub => (
+                                <div key={sub.id} className="flex justify-between items-center bg-white border border-neutral-100 p-2 rounded-xl text-sm shadow-sm">
+                                    <span className="font-medium text-neutral-700">{sub.name}</span>
+                                    <div className="flex items-center gap-3">
+                                        <span className="font-bold text-neutral-600">${Number(sub.amount).toLocaleString()}</span>
+                                        <button onClick={() => handleDeleteSubItem(item.id, subItems, sub.id)} className="text-red-400 font-bold p-1">✕</button>
+                                    </div>
+                                </div>
+                            ))}
+
+                            <div className="flex gap-2 mt-2 pt-2 border-t border-neutral-100">
+                                <input type="text" placeholder="子項目" value={subName} onChange={e => setSubName(e.target.value)} className="flex-1 p-2 text-sm bg-neutral-50 border rounded-xl outline-none" />
+                                <input type="number" placeholder="金額" value={subAmount} onChange={e => setSubAmount(e.target.value)} className="w-24 p-2 text-sm bg-neutral-50 border rounded-xl outline-none" />
+                                <button onClick={onAddSub} className="bg-pink-100 text-pink-600 px-3 py-2 rounded-xl text-sm font-bold">+</button>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    }
     }
 
     function ExpenseFormModal({ initialData, onClose, onSave }) {
+      const { useState } = React;
+      const isEdit = !!initialData;
+      const [type, setType] = useState(initialData?.type || 'expense');
+      const [amount, setAmount] = useState(initialData?.amount || '');
+      const [category, setCategory] = useState(initialData?.category || '餐飲');
+      const [date, setDate] = useState(initialData?.date || new Date().toISOString().split('T')[0]);
+      const [note, setNote] = useState(initialData?.note || '');
+
+      const categories = type === 'expense' ? ['餐飲', '交通', '購物', '娛樂', '生活', '其他'] : ['薪水', '投資', '獎金', '其他'];
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!amount || isNaN(amount)) return alert('請輸入有效金額');
+        onSave({ type, amount: Number(amount), category, date, note });
+      };
+
+      return (
+        <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
+          <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-xl font-bold">{isEdit ? '編輯紀錄' : '新增紀錄'}</h2>
+              <button onClick={onClose} className="p-2 bg-neutral-100 rounded-full text-neutral-500">✕</button>
+            </div>
+            
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="flex gap-2 p-1 bg-neutral-100 rounded-xl">
+                <button type="button" onClick={() => setType('expense')} className={`flex-1 py-2 text-sm font-bold rounded-lg ${type === 'expense' ? 'bg-white shadow-sm' : 'text-neutral-500'}`}>支出</button>
+                <button type="button" onClick={() => setType('income')} className={`flex-1 py-2 text-sm font-bold rounded-lg ${type === 'income' ? 'bg-white shadow-sm' : 'text-neutral-500'}`}>收入</button>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-neutral-700 mb-1">金額</label>
+                <input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder="0" className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none text-lg font-bold" required/>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-bold text-neutral-700 mb-1">分類</label>
+                  <select value={category} onChange={e => setCategory(e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none">
+                    {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-neutral-700 mb-1">日期</label>
+                  <input type="date" value={date} onChange={e => setDate(e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none"/>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-bold text-neutral-700 mb-1">備註 (選填)</label>
+                <input type="text" value={note} onChange={e => setNote(e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none"/>
+              </div>
+
+              <button type="submit" className="w-full py-4 mt-2 bg-indigo-600 text-white font-bold rounded-2xl">{isEdit ? '儲存修改' : '確認新增'}</button>
+            </form>
+          </div>
+        </div>
+      );
     }
 
     function WishFormModal({ initialData, onClose, onSave }) {
+      const { useState } = React;
+        const isEdit = !!initialData;
+        const [name, setName] = useState(initialData?.name || initialData?.title || '');
+        const [price, setPrice] = useState(initialData?.price || '');
+        const [targetDate, setTargetDate] = useState(initialData?.targetDate || '');
+
+        const handleSubmit = (e) => {
+            e.preventDefault();
+            if (!name || !price) return;
+            onSave({ name, price: Number(price), targetDate });
+        };
+
+        return (
+          <div className="fixed inset-0 bg-neutral-900/40 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center">
+            <div className="bg-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 animate-slide-up">
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-xl font-bold">{isEdit ? '編輯願望' : '新增願望'}</h2>
+                <button onClick={onClose} className="p-2 bg-neutral-100 rounded-full text-neutral-500">✕</button>
+              </div>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-bold text-neutral-700 mb-1">物品名稱</label>
+                  <input type="text" value={name} onChange={e => setName(e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none" required/>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-neutral-700 mb-1">總預算金額</label>
+                  <input type="number" value={price} onChange={e => setPrice(e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none text-lg font-bold" required/>
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-neutral-700 mb-1">目標日期 (選填)</label>
+                  <input type="date" value={targetDate} onChange={e => setTargetDate(e.target.value)} className="w-full p-3 bg-neutral-50 border border-neutral-200 rounded-xl outline-none"/>
+                </div>
+
+                <button type="submit" className="w-full py-4 mt-2 bg-pink-500 text-white font-bold rounded-2xl">{isEdit ? '儲存修改' : '建立目標'}</button>
+              </form>
+            </div>
+          </div>
+        );
     }
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<App />);
